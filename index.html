@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Consulta - Pulse Boas Novas 2026</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #f4f6f9; color: #333; margin: 0; padding: 20px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { text-align: center; color: #1a252f; margin-bottom: 20px; }
+    
+    .search-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 25px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .search-box input {
+      flex: 1;
+      min-width: 250px;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    .search-box button {
+      padding: 12px 24px;
+      font-size: 16px;
+      background-color: #27ae60;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .search-box button:hover { background-color: #219150; }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      border-left: 5px solid #3498db;
+    }
+    .card h3 { margin-top: 0; color: #2c3e50; display: flex; justify-content: space-between; align-items: center; }
+    .card .info { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; }
+    .card .info-item { background: #f8f9fa; padding: 8px 12px; border-radius: 4px; font-size: 14px; }
+    .badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; color: white; }
+    .bg-pago { background-color: #2ecc71; }
+    .bg-isento { background-color: #f1c40f; color: #333; }
+    .bg-aberto { background-color: #e74c3c; }
+    .bg-info { background-color: #3498db; }
+    
+    .loading { text-align: center; font-size: 18px; color: #7f8c8d; padding: 20px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Consulta - Pulse Boas Novas 2026</h1>
+
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Digite o nome, igreja ou telefone..." onkeyup="filterData()">
+    <button onclick="loadSheetsData()">Atualizar Dados</button>
+  </div>
+
+  <div id="status" class="loading">Carregando registros das planilhas...</div>
+  <div id="results"></div>
+</div>
+
+<script>
+  const SPREADSHEET_1_ID = '1QdS5m4gqqDlpmL_5vy-oBXxf5glSO17ETYikMzpOYmc'; // Inscritos Evento
+  const SPREADSHEET_2_ID = '1MWx4oRiF2q_Cjw5F52j_DYygxTMD_38KFjgXnUPz1FU'; // Pedidos Camiseta
+
+  let allData = [];
+  let pendingRequests = 2;
+
+  function fetchSheetJSON(sheetId, callbackName) {
+    const script = document.createElement('script');
+    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=responseHandler:${callbackName}`;
+    document.body.appendChild(script);
+  }
+
+  // Processa Planilha 1: Inscrições
+  window.handleInscricoes = function(json) {
+    try {
+      const rows = json.table.rows;
+      rows.forEach(r => {
+        const c = r.c;
+        if (!c || !c[1] || !c[1].v) return; // Pula se nome estiver vazio
+
+        const nome = c[1] ? String(c[1].v).trim() : 'Não informado';
+        const igreja = c[2] ? String(c[2].v).trim() : '-';
+        const telefone = c[4] ? String(c[4].v).trim() : '-';
+        const situacao = c[9] ? String(c[9].v).trim() : 'INFORMADO';
+        
+        // Camisetas por tipo de coluna
+        const infantil = c[6] ? String(c[6].v).trim() : '';
+        const babylook = c[7] ? String(c[7].v).trim() : '';
+        const masculina = c[8] ? String(c[8].v).trim() : '';
+        const camisa = infantil || babylook || masculina || 'Não pediu';
+
+        allData.push({ tipo: 'Inscrição Evento', nome, igreja, telefone, situacao, camisa });
+      });
+    } catch(e) { console.error('Erro ao processar planilha 1', e); }
+    checkFinish();
+  };
+
+  // Processa Planilha 2: Camisetas
+  window.handleCamisetas = function(json) {
+    try {
+      const rows = json.table.rows;
+      rows.forEach(r => {
+        const c = r.c;
+        if (!c || !c[1] || !c[1].v) return;
+
+        const nome = c[1] ? String(c[1].v).trim() : 'Não informado';
+        const igreja = c[2] ? String(c[2].v).trim() : '-';
+        const telefone = c[3] ? String(c[3].v).trim() : '-';
+        
+        const infantil = c[4] ? String(c[4].v).trim() : '';
+        const babylook = c[5] ? String(c[5].v).trim() : '';
+        const masculina = c[6] ? String(c[6].v).trim() : '';
+        const camisa = infantil || babylook || masculina || 'Não informado';
+
+        allData.push({ tipo: 'Pedido Camiseta', nome, igreja, telefone, situacao: 'SOLICITADO', camisa });
+      });
+    } catch(e) { console.error('Erro ao processar planilha 2', e); }
+    checkFinish();
+  };
+
+  function checkFinish() {
+    pendingRequests--;
+    if (pendingRequests <= 0) {
+      document.getElementById('status').innerText = `${allData.length} registros encontrados!`;
+      renderData(allData);
+    }
+  }
+
+  function loadSheetsData() {
+    allData = [];
+    pendingRequests = 2;
+    document.getElementById('status').innerText = 'Carregando registros das planilhas...';
+    document.getElementById('results').innerHTML = '';
+
+    fetchSheetJSON(SPREADSHEET_1_ID, 'handleInscricoes');
+    fetchSheetJSON(SPREADSHEET_2_ID, 'handleCamisetas');
+  }
+
+  function renderData(data) {
+    const container = document.getElementById('results');
+    container.innerHTML = '';
+
+    if (data.length === 0) {
+      container.innerHTML = '<p style="text-align:center;">Nenhum registro encontrado.</p>';
+      return;
+    }
+
+    data.forEach(item => {
+      let badgeClass = 'bg-info';
+      const st = item.situacao.toUpperCase();
+      if (st.includes('PAGO')) badgeClass = 'bg-pago';
+      else if (st.includes('ISENTO')) badgeClass = 'bg-isento';
+      else if (st.includes('ABERTO')) badgeClass = 'bg-aberto';
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <h3>
+          <span>${item.nome}</span>
+          <span class="badge ${badgeClass}">${item.situacao}</span>
+        </h3>
+        <div class="info">
+          <div class="info-item"><strong>Origem:</strong> ${item.tipo}</div>
+          <div class="info-item"><strong>Igreja:</strong> ${item.igreja}</div>
+          <div class="info-item"><strong>Telefone:</strong> ${item.telefone}</div>
+          <div class="info-item"><strong>Camiseta:</strong> ${item.camisa}</div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  function filterData() {
+    const term = document.getElementById('searchInput').value.toLowerCase().trim();
+    const filtered = allData.filter(item => 
+      item.nome.toLowerCase().includes(term) ||
+      item.igreja.toLowerCase().includes(term) ||
+      item.telefone.toLowerCase().includes(term)
+    );
+    renderData(filtered);
+  }
+
+  // Inicia a busca automaticamente ao carregar a página
+  loadSheetsData();
+</script>
+
+</body>
+</html>
